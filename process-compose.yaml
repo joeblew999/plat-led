@@ -1,0 +1,48 @@
+version: "0.5"
+
+processes:
+  ssh-bridge:
+    command: .bin/ssh-bridge -listen-addr :12022 -stats-addr :12023 -priv-key .keys/id_ed25519 -auth-keys .keys/authorized_keys
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 12023
+        path: /
+      initial_delay_seconds: 1
+      period_seconds: 2
+    availability:
+      restart: on_failure
+
+  ssh-tunnel-server:
+    # Reverse tunnel: expose led-server's :8001 as localhost:8000 on ssh-bridge
+    command: ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i .keys/id_ed25519 -p 12022 -N -R localhost:8000:localhost:8001 localhost
+    depends_on:
+      ssh-bridge:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+
+  led-server:
+    command: go run ./cmd/led-server -listen :8001
+    depends_on:
+      ssh-tunnel-server:
+        condition: process_started
+    availability:
+      restart: on_failure
+
+  ssh-tunnel-client:
+    # Local forward: connect to localhost:8002 to reach led-server via ssh-bridge
+    command: ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i .keys/id_ed25519 -p 12022 -N -L 8002:localhost:8000 localhost
+    depends_on:
+      led-server:
+        condition: process_started
+    availability:
+      restart: on_failure
+
+  led-client:
+    # Interactive client - disabled by default, run with: process-compose up led-client
+    command: go run ./cmd/led-client -server localhost:8002
+    depends_on:
+      ssh-tunnel-client:
+        condition: process_started
+    disabled: true

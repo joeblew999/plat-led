@@ -1,0 +1,350 @@
+# https://taskfile.dev
+
+version: '3'
+
+# Global environment variables
+env:
+  GOWORK: "off"
+  CGO_ENABLED: "0"
+
+vars:
+  SRC_DIR: .src
+  BIN_DIR: .bin
+
+  # Dependency repositories
+  PIO_REPO: https://github.com/tinygo-org/pio.git
+  PIO_BRANCH: rmii2
+  PIO_DIR: "{{.SRC_DIR}}/pio"
+
+  LNETO_REPO: https://github.com/soypat/lneto.git
+  LNETO_BRANCH: main
+  LNETO_DIR: "{{.SRC_DIR}}/lneto"
+
+  CYW43439_REPO: https://github.com/soypat/cyw43439.git
+  CYW43439_BRANCH: main
+  CYW43439_DIR: "{{.SRC_DIR}}/cyw43439"
+
+  SSH_BRIDGE_REPO: https://github.com/ddirect/ssh-bridge.git
+  SSH_BRIDGE_BRANCH: main
+  SSH_BRIDGE_DIR: "{{.SRC_DIR}}/ssh-bridge"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # ============================================================================
+  # Source dependency management
+  # ============================================================================
+
+  src:init:
+    desc: Create .src directory
+    internal: true
+    cmds:
+      - mkdir -p {{.SRC_DIR}}
+    status:
+      - test -d {{.SRC_DIR}}
+
+  src:clone-all:
+    desc: Clone all dependency repos into .src (idempotent)
+    cmds:
+      - task: src:ensure:pio
+      - task: src:ensure:lneto
+      - task: src:ensure:cyw43439
+      - task: src:ensure:ssh-bridge
+
+  src:update-all:
+    desc: Update all dependency repos (clones if missing)
+    cmds:
+      - task: src:sync:pio
+      - task: src:sync:lneto
+      - task: src:sync:cyw43439
+      - task: src:sync:ssh-bridge
+
+  src:clean:
+    desc: Remove all cloned repos from .src
+    cmds:
+      - rm -rf {{.SRC_DIR}}
+    prompt: This will delete all cloned repos in .src. Continue?
+
+  # ----------------------------------------------------------------------------
+  # PIO (tinygo-org/pio rmii2 branch)
+  # ----------------------------------------------------------------------------
+
+  src:ensure:pio:
+    desc: Ensure pio repo exists (clone if missing)
+    deps: [src:init]
+    cmds:
+      - git clone --branch {{.PIO_BRANCH}} --depth 1 {{.PIO_REPO}} {{.PIO_DIR}}
+    status:
+      - test -d {{.PIO_DIR}}/.git
+
+  src:sync:pio:
+    desc: Clone or update pio repo
+    cmds:
+      - task: src:ensure:pio
+      - cmd: |
+          cd {{.PIO_DIR}} && \
+          git fetch origin {{.PIO_BRANCH}} && \
+          git reset --hard origin/{{.PIO_BRANCH}}
+        ignore_error: false
+
+  src:status:pio:
+    desc: Show pio repo status
+    cmds:
+      - |
+        if [ -d "{{.PIO_DIR}}/.git" ]; then
+          cd {{.PIO_DIR}} && git log -1 --oneline && git status -s
+        else
+          echo "Not cloned"
+        fi
+
+  # ----------------------------------------------------------------------------
+  # lneto (soypat/lneto - TCP/IP stack)
+  # ----------------------------------------------------------------------------
+
+  src:ensure:lneto:
+    desc: Ensure lneto repo exists (clone if missing)
+    deps: [src:init]
+    cmds:
+      - git clone --branch {{.LNETO_BRANCH}} --depth 1 {{.LNETO_REPO}} {{.LNETO_DIR}}
+    status:
+      - test -d {{.LNETO_DIR}}/.git
+
+  src:sync:lneto:
+    desc: Clone or update lneto repo
+    cmds:
+      - task: src:ensure:lneto
+      - cmd: |
+          cd {{.LNETO_DIR}} && \
+          git fetch origin {{.LNETO_BRANCH}} && \
+          git reset --hard origin/{{.LNETO_BRANCH}}
+        ignore_error: false
+
+  src:status:lneto:
+    desc: Show lneto repo status
+    cmds:
+      - |
+        if [ -d "{{.LNETO_DIR}}/.git" ]; then
+          cd {{.LNETO_DIR}} && git log -1 --oneline && git status -s
+        else
+          echo "Not cloned"
+        fi
+
+  # ----------------------------------------------------------------------------
+  # cyw43439 (soypat/cyw43439 - WiFi driver)
+  # ----------------------------------------------------------------------------
+
+  src:ensure:cyw43439:
+    desc: Ensure cyw43439 repo exists (clone if missing)
+    deps: [src:init]
+    cmds:
+      - git clone --branch {{.CYW43439_BRANCH}} --depth 1 {{.CYW43439_REPO}} {{.CYW43439_DIR}}
+    status:
+      - test -d {{.CYW43439_DIR}}/.git
+
+  src:sync:cyw43439:
+    desc: Clone or update cyw43439 repo
+    cmds:
+      - task: src:ensure:cyw43439
+      - cmd: |
+          cd {{.CYW43439_DIR}} && \
+          git fetch origin {{.CYW43439_BRANCH}} && \
+          git reset --hard origin/{{.CYW43439_BRANCH}}
+        ignore_error: false
+
+  src:status:cyw43439:
+    desc: Show cyw43439 repo status
+    cmds:
+      - |
+        if [ -d "{{.CYW43439_DIR}}/.git" ]; then
+          cd {{.CYW43439_DIR}} && git log -1 --oneline && git status -s
+        else
+          echo "Not cloned"
+        fi
+
+  # ----------------------------------------------------------------------------
+  # ssh-bridge (ddirect/ssh-bridge)
+  # ----------------------------------------------------------------------------
+
+  src:ensure:ssh-bridge:
+    desc: Ensure ssh-bridge repo exists (clone if missing)
+    deps: [src:init]
+    cmds:
+      - git clone --branch {{.SSH_BRIDGE_BRANCH}} --depth 1 {{.SSH_BRIDGE_REPO}} {{.SSH_BRIDGE_DIR}}
+    status:
+      - test -d {{.SSH_BRIDGE_DIR}}/.git
+
+  src:sync:ssh-bridge:
+    desc: Clone or update ssh-bridge repo
+    cmds:
+      - task: src:ensure:ssh-bridge
+      - cmd: |
+          cd {{.SSH_BRIDGE_DIR}} && \
+          git fetch origin {{.SSH_BRIDGE_BRANCH}} && \
+          git reset --hard origin/{{.SSH_BRIDGE_BRANCH}}
+        ignore_error: false
+
+  src:status:ssh-bridge:
+    desc: Show ssh-bridge repo status
+    cmds:
+      - |
+        if [ -d "{{.SSH_BRIDGE_DIR}}/.git" ]; then
+          cd {{.SSH_BRIDGE_DIR}} && git log -1 --oneline && git status -s
+        else
+          echo "Not cloned"
+        fi
+
+  # ============================================================================
+  # Build tasks
+  # ============================================================================
+
+  build:init:
+    desc: Create bin directory
+    internal: true
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+    status:
+      - test -d {{.BIN_DIR}}
+
+  build:desktop:
+    desc: Build LED driver for desktop (simulation)
+    deps: [build:init]
+    cmds:
+      - go build -o {{.BIN_DIR}}/led-driver ./cmd/led-driver
+    sources:
+      - cmd/led-driver/**/*.go
+      - internal/**/*.go
+    generates:
+      - "{{.BIN_DIR}}/led-driver"
+
+  build:pico-wifi:
+    desc: Build LED driver for Pico W with WiFi
+    deps: [build:init]
+    cmds:
+      - tinygo build -tags=wifi -target=pico -o {{.BIN_DIR}}/led-driver.uf2 ./cmd/led-driver
+    sources:
+      - cmd/led-driver/**/*.go
+      - internal/**/*.go
+    generates:
+      - "{{.BIN_DIR}}/led-driver.uf2"
+
+  build:pico-rmii:
+    desc: Build LED driver for Pico with RMII Ethernet
+    deps: [build:init]
+    cmds:
+      - tinygo build -tags=rmii -target=pico -o {{.BIN_DIR}}/led-driver-rmii.uf2 ./cmd/led-driver
+    sources:
+      - cmd/led-driver/**/*.go
+      - internal/**/*.go
+    generates:
+      - "{{.BIN_DIR}}/led-driver-rmii.uf2"
+
+  build:client:
+    desc: Build LED client CLI
+    deps: [build:init]
+    cmds:
+      - go build -o {{.BIN_DIR}}/led-client ./cmd/led-client
+    sources:
+      - cmd/led-client/**/*.go
+      - pkg/client/**/*.go
+    generates:
+      - "{{.BIN_DIR}}/led-client"
+
+  build:ssh-bridge:
+    desc: Build ssh-bridge from source
+    deps: [build:init, src:ensure:ssh-bridge]
+    dir: "{{.SSH_BRIDGE_DIR}}"
+    cmds:
+      - go build -o ../../{{.BIN_DIR}}/ssh-bridge .
+    sources:
+      - "{{.SSH_BRIDGE_DIR}}/**/*.go"
+    generates:
+      - "{{.BIN_DIR}}/ssh-bridge"
+
+  build:all:
+    desc: Build all components for desktop
+    cmds:
+      - task: build:desktop
+      - task: build:client
+      - task: build:ssh-bridge
+
+  build:clean:
+    desc: Remove all build artifacts
+    cmds:
+      - rm -rf {{.BIN_DIR}}
+
+  # ============================================================================
+  # Development tasks
+  # ============================================================================
+
+  dev:setup:
+    desc: Full development setup (clone deps, build all)
+    cmds:
+      - task: src:clone-all
+      - task: build:all
+
+  dev:sim:
+    desc: Run local simulation with process-compose
+    deps: [build:ssh-bridge]
+    cmds:
+      - process-compose up
+    preconditions:
+      - sh: command -v process-compose
+        msg: "process-compose not installed. Run: brew install f1bonacc1/tap/process-compose"
+
+  dev:flash:
+    desc: Flash LED driver to connected Pico
+    deps: [build:pico-wifi]
+    cmds:
+      - |
+        # Find mounted Pico
+        PICO_MOUNT=$(ls -d /Volumes/RPI-RP2 2>/dev/null || echo "")
+        if [ -z "$PICO_MOUNT" ]; then
+          echo "Error: Pico not found in BOOTSEL mode"
+          echo "Hold BOOTSEL button while connecting USB"
+          exit 1
+        fi
+        cp {{.BIN_DIR}}/led-driver.uf2 "$PICO_MOUNT/"
+        echo "Flashed to $PICO_MOUNT"
+
+  # ============================================================================
+  # Info tasks
+  # ============================================================================
+
+  info:deps:
+    desc: Show status of all dependency repos
+    cmds:
+      - echo "=== PIO (rmii2) ==="
+      - task: src:status:pio
+      - echo ""
+      - echo "=== lneto ==="
+      - task: src:status:lneto
+      - echo ""
+      - echo "=== cyw43439 ==="
+      - task: src:status:cyw43439
+      - echo ""
+      - echo "=== ssh-bridge ==="
+      - task: src:status:ssh-bridge
+
+  info:tools:
+    desc: Check required tools are installed
+    cmds:
+      - |
+        echo "Checking required tools..."
+        echo ""
+
+        check_tool() {
+          if command -v "$1" &> /dev/null; then
+            echo "✓ $1: $(command -v $1)"
+          else
+            echo "✗ $1: NOT FOUND"
+          fi
+        }
+
+        check_tool go
+        check_tool tinygo
+        check_tool git
+        check_tool process-compose
+        check_tool task
